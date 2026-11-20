@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "register": "node scripts/register-commands.js"
+    "register": "node scripts/register-commands.js",
+    "start": "node bot.js"
   },
   "dependencies": {
     "discord-interactions": "^4.2.0",

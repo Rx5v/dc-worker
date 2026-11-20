@@ -1,0 +1,15 @@
+services:
+  - type: worker
+    name: dc-bot-gateway
+    runtime: node
+    buildCommand: npm install --omit=dev
+    startCommand: node bot.js
+    envVars:
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: DISCORD_APP_ID
+        sync: false
+      - key: WORKER_URL
+        value: https://dc-bot-ai-worker.teguhwsaputra11.workers.dev
+      - key: WEBHOOK_SECRET
+        sync: false

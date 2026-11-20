@@ -9,6 +9,17 @@
 //   Discord --(mention event)--> bot.js --(POST /chat)--> Worker --> OpenAI kamu
 
 import { Client, GatewayIntentBits } from "discord.js";
+import { readFileSync, existsSync } from "node:fs";
+
+// Auto-load .env (tanpa dependency tambahan) agar `node bot.js` langsung jalan
+for (const f of [".env", "bot.env"]) {
+  if (existsSync(f)) {
+    for (const line of readFileSync(f, "utf8").split("\n")) {
+      const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/);
+      if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+    }
+  }
+}
 
 const { DISCORD_BOT_TOKEN, WORKER_URL, WEBHOOK_SECRET } = process.env;
 if (!DISCORD_BOT_TOKEN || !WORKER_URL || !WEBHOOK_SECRET) {
@@ -26,7 +37,7 @@ const client = new Client({
   ],
 });
 
-client.once("ready", () => {
+client.once("clientReady", () => {
   console.log(`Logged in as ${client.user.tag} — mention bot untuk bertanya.`);
 });
 

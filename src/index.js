@@ -5,19 +5,26 @@ const JSON_HEADERS = { "content-type": "application/json" };
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    // Normalisasi: "/interactions" dan "/interactions/" dianggap sama
+    const path = url.pathname.length > 1 ? url.pathname.replace(/\/+$/, "") : url.pathname;
 
-    if (request.method === "GET" && url.pathname === "/") {
+    if (request.method === "GET" && path === "/") {
       return Response.json(
         { ok: true, service: "dc-bot-ai-worker", endpoints: ["POST /interactions", "POST /chat"] },
         { headers: JSON_HEADERS }
       );
     }
 
-    if (request.method === "POST" && url.pathname === "/interactions") {
-      return handleInteractions(request, env, ctx);
+    if (path === "/interactions") {
+      if (request.method === "POST") return handleInteractions(request, env, ctx);
+      // Bantu debug: GET /interactions harusnya 405, bukan 404
+      return Response.json(
+        { ok: false, error: "Method not allowed, gunakan POST" },
+        { status: 405, headers: JSON_HEADERS }
+      );
     }
 
-    if (request.method === "POST" && url.pathname === "/chat") {
+    if (request.method === "POST" && path === "/chat") {
       return handleChat(request, env);
     }
 
@@ -32,8 +39,15 @@ async function handleInteractions(request, env, ctx) {
   const timestamp = request.headers.get("x-signature-timestamp");
   const rawBody = await request.text();
 
+  if (!env.DISCORD_PUBLIC_KEY) {
+    console.error("DISCORD_PUBLIC_KEY belum di-set (wrangler secret).");
+    return new Response("Server misconfigured", { status: 500 });
+  }
   const isValid = await verifyKey(rawBody, signature, timestamp, env.DISCORD_PUBLIC_KEY).catch(
-    () => false
+    (e) => {
+      console.error("verifyKey error:", e?.message);
+      return false;
+    }
   );
   if (!isValid) {
     return new Response("Bad request signature", { status: 401 });
@@ -141,6 +155,8 @@ async function handleChat(request, env) {
 
   const history = Array.isArray(body.history) ? body.history.slice(-10) : [];
   const username = body.username ?? "user";
+  const systemOverride =
+    body.system_prompt ?? body.personality ?? body.systemPrompt ?? null;
 
   const messages = [
     ...history.filter((m) => m?.role && m?.content).map((m) => ({ role: m.role, content: String(m.content) })),
@@ -148,7 +164,7 @@ async function handleChat(request, env) {
   ];
 
   try {
-    const reply = await callLLM(env, messages);
+    const reply = await callLLM(env, messages, systemOverride);
     return Response.json({ ok: true, reply }, { headers: JSON_HEADERS });
   } catch (e) {
     console.error("callLLM error:", e);
@@ -158,10 +174,11 @@ async function handleChat(request, env) {
 
 // ---------- OpenAI / OpenAI-compatible chat completions ----------
 
-async function callLLM(env, messages) {
+async function callLLM(env, messages, systemOverride = null) {
   if (!env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY belum di-set (wrangler secret).");
   const baseUrl = (env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
   const model = env.OPENAI_MODEL || "gpt-4o-mini";
+  const system = systemOverride || env.SYSTEM_PROMPT || "Kamu asisten Discord yang ramah.";
 
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
@@ -169,13 +186,13 @@ async function callLLM(env, messages) {
       "content-type": "application/json",
       Authorization: `Bearer ${env.OPENAI_API_KEY}`,
     },
-    body: JSON.stringify({
+      body: JSON.stringify({
       model,
       messages: [
-        { role: "system", content: env.SYSTEM_PROMPT || "Kamu asisten Discord yang ramah." },
+        { role: "system", content: system },
         ...messages,
       ],
-      max_tokens: 800,
+      max_tokens: 4000,
       temperature: 0.7,
     }),
   });
@@ -185,9 +202,32 @@ async function callLLM(env, messages) {
     throw new Error(`LLM ${res.status}: ${t.slice(0, 300)}`);
   }
   const data = await res.json();
-  const reply = data.choices?.[0]?.message?.content?.trim();
-  if (!reply) throw new Error("LLM mengembalikan respons kosong.");
+  // Model reasoning (seperti muse-spark) menghabiskan token untuk berpikir;
+  // content bisa berupa string, array parts, atau ada di reasoning_content.
+  const msg = data.choices?.[0]?.message ?? {};
+  const reply = (
+    (typeof msg.content === "string" ? msg.content : extractText(msg.content)) ||
+    extractText(msg.reasoning_content) ||
+    ""
+  ).trim();
+  if (!reply) {
+    if (data.choices?.[0]?.finish_reason === "length") {
+      throw new Error("LLM kehabisan token (coba lagi, max_tokens sudah dinaikkan).");
+    }
+    throw new Error("LLM mengembalikan respons kosong.");
+  }
   return reply;
+}
+
+function extractText(part) {
+  if (!part) return "";
+  if (typeof part === "string") return part;
+  if (Array.isArray(part)) {
+    return part
+      .map((p) => (typeof p === "string" ? p : p?.text ?? p?.content ?? ""))
+      .join("");
+  }
+  return "";
 }
 
 function getWaitUntil(ctx) {

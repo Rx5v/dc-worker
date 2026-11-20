@@ -1,0 +1,8 @@
+# Dipakai `wrangler dev` (lokal). JANGAN commit file aslinya — copy dari contoh ini.
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_API_KEY=sk-isi-token-openai-kamu
+OPENAI_MODEL=gpt-4o-mini
+DISCORD_PUBLIC_KEY=isi_dari_developer_portal
+DISCORD_APP_ID=isi_application_id
+DISCORD_BOT_TOKEN=isi_token_bot
+WEBHOOK_SECRET=harus_sama_dengan_env_gateway
