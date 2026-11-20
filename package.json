@@ -1,0 +1,18 @@
+{
+  "name": "dc-bot-ai-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "register": "node scripts/register-commands.js"
+  },
+  "dependencies": {
+    "discord-interactions": "^4.2.0",
+    "discord.js": "^14.16.3"
+  },
+  "devDependencies": {
+    "wrangler": "^3.80.0"
+  }
+}

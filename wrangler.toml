@@ -1,0 +1,15 @@
+name = "dc-bot-ai-worker"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+[vars]
+OPENAI_MODEL = "gpt-4o-mini"
+SYSTEM_PROMPT = "Kamu adalah asisten Discord yang ramah. Jawab singkat, jelas, dalam Bahasa Indonesia kecuali user memakai bahasa lain."
+
+# Secrets — JANGAN tulis token di sini. Set via:
+#   npx wrangler secret put DISCORD_PUBLIC_KEY
+#   npx wrangler secret put DISCORD_APP_ID
+#   npx wrangler secret put DISCORD_BOT_TOKEN
+#   npx wrangler secret put OPENAI_BASE_URL
+#   npx wrangler secret put OPENAI_API_KEY
+#   npx wrangler secret put WEBHOOK_SECRET
